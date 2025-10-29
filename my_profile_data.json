@@ -1,0 +1,35 @@
+{
+    "fullName": "Alex Chen",
+    "verified": false, 
+    "connectionCount": 250, 
+    "recommendationCount": 3, 
+    "experience": [
+      {
+        "companyName": "Innovate Solutions Inc.", 
+        "title": "Full Stack Developer"     
+      },
+      {
+         "companyName": "Web Creations LLC",    
+         "title": "Junior Web Developer" 
+      }     
+    ],
+    "skills": [
+      {"name": "Python"},
+      {"name": "JavaScript"},
+      {"name": "React"},
+      {"name": "Node.js"},
+      {"name": "MongoDB"},
+      {"name": "PostgreSQL"},
+      {"name": "MySQL"},
+      {"name": "AWS"},
+      {"name": "Docker"},
+      {"name": "Kubernetes"},
+      {"name": "CI/CD"},
+      {"name": "Git"}
+      
+    ],
+    "posts": [ 
+      {"type": "PERSONAL_POST", "likesCount": 50},
+      {"type": "REPOST", "likesCount": 10}
+    ]
+   }
