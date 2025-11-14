@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candidate Dashboard</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+    <style>
+        /* --- 🎨 New Rich Color Palette --- */
+        :root {
+            --primary-color: #3366FF;
+            --primary-light: #EBF5FF;
+            --bg-color: #F7F8FA;
+            --card-bg: #FFFFFF;
+            --card-border: #E5E7EB;
+            --text-primary: #111827;
+            --text-secondary: #6B7280;
+            --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            
+            /* Sidebar */
+            --sidebar-width: 260px;
+            --sidebar-bg: #FFFFFF;
+            --sidebar-text: #333;
+            --sidebar-active-bg: #EBF5FF;
+            --sidebar-active-text: #3366FF;
+            --sidebar-hover-bg: #F3F4F6;
+            
+            /* Topbar */
+            --topbar-height: 70px;
+
+            /* Trust Colors */
+            --trust-high: #00C48C; /* Green */
+            --trust-high-bg: #E6FBF3;
+            --trust-medium: #FFA500; /* Orange */
+            --trust-medium-bg: #FFF8E6;
+            --trust-low: #FF4444; /* Red */
+            --trust-low-bg: #FFF0F0;
+            /* NEW: For scores 25-49% */
+            --trust-vlow: #FFCD33; /* Yellow-Orange */
+            --trust-vlow-bg: #FFFCEB;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        /* --- Loading Spinner --- */
+        .loading-overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 1060;
+            transition: opacity 0.3s;
+        }
+
+        /* --- 🎨 New Sidebar Style --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            top: 0; left: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--card-border);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            font-size: 1.5rem; font-weight: 700;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding-bottom: 1.5rem;
+        }
+        .sidebar .nav-link {
+            color: var(--text-secondary);
+            font-size: 1rem; font-weight: 500;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.5rem; margin-bottom: 0.25rem;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        .sidebar .nav-link:hover {
+            background-color: var(--sidebar-hover-bg);
+            color: var(--text-primary);
+        }
+        .sidebar .nav-link.active {
+            background-color: var(--sidebar-active-bg);
+            color: var(--sidebar-active-text);
+            font-weight: 600;
+        }
+        .sidebar .nav-link .bi {
+            margin-right: 0.75rem;
+            font-size: 1.2rem;
+        }
+        .sidebar .logout-btn {
+            margin-top: auto;
+        }
+
+        /* --- 🎨 New Layout (Topbar + Main) --- */
+        .content-wrapper {
+            margin-left: var(--sidebar-width);
+            width: calc(100% - var(--sidebar-width));
+        }
+        
+        .topbar {
+            height: var(--topbar-height);
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--card-border);
+            padding: 0 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .topbar .input-group {
+            width: 400px;
+        }
+        .topbar .input-group-text {
+            background: var(--bg-color);
+            border: none;
+        }
+        .topbar .form-control {
+            background: var(--bg-color);
+            border: none;
+        }
+        .topbar .form-control:focus {
+            background-color: #fff;
+            box-shadow: none;
+            border: 1px solid var(--primary-color);
+        }
+        
+        .page-container {
+            padding: 2.5rem;
+            height: calc(100vh - var(--topbar-height));
+            overflow-y: auto;
+        }
+
+        /* --- Page Styles --- */
+        main[data-page] { display: none; }
+        main[data-page].active { display: block; }
+        
+        /* --- 🎨 New KPI Cards --- */
+        .kpi-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow-sm);
+        }
+        .kpi-card .card-body {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem;
+        }
+        .kpi-card .kpi-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .kpi-card .kpi-title {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        .kpi-card .kpi-icon-bg {
+            font-size: 1.75rem;
+            padding: 0.75rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #kpi-total-candidates-icon { background-color: var(--primary-light); color: var(--primary-color); }
+        #kpi-verified-candidates-icon { background-color: var(--trust-high-bg); color: var(--trust-high); }
+        #kpi-suspicious-profiles-icon { background-color: var(--trust-low-bg); color: var(--trust-low); }
+
+        /* --- 🎨 New Chart Cards --- */
+        .chart-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow-sm);
+            padding: 1.5rem;
+        }
+        .chart-wrapper {
+            position: relative;
+            height: 320px;
+        }
+        .chart-bar {
+            display: flex; align-items: center; font-size: 0.9rem; margin-bottom: 0.75rem;
+        }
+        .bar-label {
+            width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-weight: 500;
+        }
+        .bar-visual {
+            flex: 1; background-color: #e9ecef; border-radius: 0.375rem; height: 28px;
+            overflow: hidden;
+        }
+        .bar-visual div {
+            height: 100%; border-radius: 0.375rem;
+            text-align: right; padding-right: 8px; color: white;
+            font-size: 0.8rem; font-weight: 600; line-height: 28px; box-sizing: border-box;
+            min-width: 24px;
+            transition: width 0.5s ease;
+        }
+
+        /* --- 🎨 New Table Style --- */
+        .table-container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow-sm);
+            padding: 1rem;
+        }
+        .table {
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 0;
+        }
+        .table thead th {
+            border-bottom: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+        }
+        .table tbody td {
+            padding: 1rem 1.25rem;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--card-border);
+        }
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        .table tbody tr:hover {
+            background-color: var(--bg-color);
+        }
+        .table tbody td a {
+            text-decoration: none;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .table tbody td a:hover:not(.btn) {
+            color: var(--primary-color);
+        }
+        .avatar-sm {
+            width: 32px; height: 32px;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--primary-light);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        .trust-badge {
+            font-size: 0.9rem;
+            padding: 0.3em 0.6em;
+            font-weight: 600;
+        }
+        .trust-badge.high { background-color: var(--trust-high-bg); color: var(--trust-high); }
+        .trust-badge.medium { background-color: var(--trust-medium-bg); color: var(--trust-medium); }
+        .trust-badge.vlow { background-color: var(--trust-vlow-bg); color: var(--trust-vlow); }
+        .trust-badge.low { background-color: var(--trust-low-bg); color: var(--trust-low); }
+        .btn-view-details {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        /* --- 🎨 Detail Page (From React) --- */
+        .page-header {
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 2.5rem;
+        }
+        .page-content {
+            padding: 2.5rem;
+        }
+        .avatar-xxl {
+            width: 96px; height: 96px;
+        }
+        .avatar-fallback-brand {
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 2rem;
+        }
+        .contact-link {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        .contact-link:hover {
+            text-decoration: underline;
+        }
+        .trust-gauge {
+            position: relative;
+            width: 160px; height: 160px;
+        }
+        .trust-gauge svg {
+            width: 160px; height: 160px;
+            transform: rotate(-90deg);
+        }
+        .trust-gauge-bg {
+            stroke: #f0f0f0;
+            stroke-width: 12;
+            fill: none;
+        }
+        .trust-gauge-fg {
+            stroke-width: 12;
+            fill: none;
+            stroke-linecap: round;
+            transition: stroke-dasharray 0.5s ease, stroke 0.5s ease;
+        }
+        .trust-gauge-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .trust-gauge-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        .trust-gauge-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        .trust-gauge-badge {
+            transition: background-color 0.5s ease;
+        }
+        .ai-summary-box {
+            background: linear-gradient(90deg, #EBF5FF 0%, #F3EFFF 100%);
+            border: 1px solid #d1e3ff;
+            border-radius: 0.75rem;
+        }
+        .detail-tabs .nav-tabs {
+            border-bottom: 1px solid var(--border-color);
+        }
+        .detail-tabs .nav-link {
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--text-secondary);
+            font-weight: 500;
+            padding: 1rem;
+        }
+        .detail-tabs .nav-link.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+        .status-icon.green { color: var(--trust-high); }
+        .status-icon.red { color: var(--trust-low); }
+        .status-icon.yellow { color: var(--trust-medium); }
+        .discrepancy-item { color: var(--trust-low); }
+    </style>
+</head>
+<body>
+
+    <div class="loading-overlay" id="loading-spinner">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3 fs-5">Loading Dashboard...</p>
+    </div>
+
+    <aside class="sidebar d-flex flex-column">
+        <div class="sidebar-header">
+            <i class="bi bi-robot"></i>
+            <span>DIZ AI</span>
+        </div>
+        <ul class="nav nav-pills flex-column mt-3">
+            <li class="nav-item">
+                <a href="#dashboard" class="nav-link active" data-page-target="dashboard">
+                    <i class="bi bi-grid-fill"></i>Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#candidates" class="nav-link" data-page-target="candidates">
+                    <i class="bi bi-people-fill"></i>Candidates
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#analytics" class="nav-link" data-page-target="analytics">
+                    <i class="bi bi-bar-chart-line-fill"></i>Verification Reports
+                </a>
+            </li>
+        </ul>
+        <a href="#" class="nav-link logout-btn">
+            <i class="bi bi-box-arrow-left"></i>Logout
+        </a>
+    </aside>
+
+    <div class="content-wrapper">
+
+        <header class="topbar">
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="Search candidates, roles, or reports...">
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-bell-fill fs-5 text-secondary"></i>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <span>HR</span>
+                    </div>
+                    <div>
+                        <h6 class="mb-0 fs-6">HR Manager</h6>
+                        <small class="text-muted">hr@company.com</small>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-container">
+
+            <main data-page="dashboard" class="active">
+                <section class="row mb-4">
+                    <div class="col-lg-4 col-md-6 mb-3">
+                        <div class="card kpi-card h-100">
+                            <div class="card-body">
+                                <div>
+                                    <h6 class="kpi-title">Total Applications Received</h6>
+                                    <h3 class="kpi-value" id="kpi-total-candidates">0</h3>
+                                </div>
+                                <div class="kpi-icon-bg" id="kpi-total-candidates-icon">
+                                    <i class="bi bi-person-lines-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6 mb-3">
+                        <div class="card kpi-card h-100">
+                            <div class="card-body">
+                                <div>
+                                    <h6 class="kpi-title">Verified Candidates</h6>
+                                    <h3 class="kpi-value" id="kpi-verified-candidates">0</h3>
+                                </div>
+                                <div class="kpi-icon-bg" id="kpi-verified-candidates-icon">
+                                    <i class="bi bi-patch-check-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6 mb-3">
+                        <div class="card kpi-card h-100">
+                            <div class="card-body">
+                                <div>
+                                    <h6 class="kpi-title">Suspicious Profiles</h6>
+                                    <h3 class="kpi-value" id="kpi-suspicious-profiles">0</h3>
+                                </div>
+                                <div class="kpi-icon-bg" id="kpi-suspicious-profiles-icon">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="row mb-4">
+                    <div class="col-lg-8 mb-4">
+                        <div class="chart-card h-100">
+                            <h5 class="mb-3">Applications Over Time</h5>
+                            <div class="chart-wrapper">
+                                <canvas id="applicationsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 mb-4">
+                        <div class="chart-card h-100">
+                            <h5 class="mb-3">Trust Score Distribution</h5>
+                            <div class="chart-wrapper" style="height: 280px; margin-top: 20px;">
+                                <canvas id="trustScoreChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="table-container">
+                    <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+                        <h5 class="mb-0">Recent Candidates</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-funnel me-1"></i> Filter</button>
+                            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i> Export</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Role Applied</th>
+                                    <th>Trust Score</th>
+                                    <th>Verification Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-recent-table">
+                                </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+
+            <main data-page="candidates">
+                <header class="mb-4">
+                    <h1>Candidates</h1>
+                    <p class="fs-5 text-muted">Browse and search all candidates.</p>
+                </header>
+                
+                <div class="table-container">
+                    <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+                        <h5 class="mb-0">All Candidates</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-funnel me-1"></i> Filter</button>
+                            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i> Export</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Suggested Role</th>
+                                    <th>Trust Score</th>
+                                    <th>GitHub</th>
+                                    <th>LinkedIn</th>
+                                    <th>AI Flag</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="candidate-table-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+
+            <main data-page="analytics">
+                <header class="mb-4">
+                    <h1>Verification Reports</h1>
+                    <p class="fs-5 text-muted">Detailed breakdown of candidate data.</p>
+                </header>
+                
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="chart-card h-100">
+                            <h5 class="mb-3">Score Distribution</h5>
+                            <div class="chart-wrapper" id="analytics-score-chart-wrapper">
+                                <canvas id="analyticsScoreChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="chart-card h-100">
+                             <h5 class="mb-3">Trust Score Comparison (Avg)</h5>
+                            <div class="chart-wrapper" id="analytics-trust-chart-wrapper">
+                                <canvas id="analyticsTrustChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-8 mb-4">
+                        <div class="chart-card h-100">
+                            <h5 class="mb-3">Certificate Verification Status</h5>
+                            <div id="analytics-cert-chart" class="mt-4">
+                                </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <main data-page="detail">
+                <div class="page-header">
+                    <a href="#candidates" class="btn btn-ghost mb-4 text-muted p-0">
+                        <i class="bi bi-arrow-left me-2"></i>
+                        Back to Candidates
+                    </a>
+                    
+                    <div class="d-flex align-items-start justify-content-between">
+                        <div class="d-flex align-items-start gap-4">
+                            <div class="avatar avatar-xxl">
+                                <span class="avatar-fallback-brand rounded-circle d-flex align-items-center justify-content-center avatar-xxl" id="detail-avatar">
+                                    ...
+                                </span>
+                            </div>
+
+                            <div>
+                                <h1 class="mb-2 fs-2" id="detail-name">...</h1>
+                                <p class="fs-5 text-muted mb-4" id="detail-role">...</p>
+                                
+                                <div class="d-flex flex-wrap gap-4 text-sm text-muted">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-envelope-fill"></i>
+                                        <span id="detail-email">...</span>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-phone-fill"></i>
+                                        <span id="detail-phone">N/A</span>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2" id="detail-linkedin-link-container">
+                                        <i class="bi bi-linkedin"></i>
+                                        <a href="#" id="detail-linkedin-url" class="contact-link" target="_blank">LinkedIn</a>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2" id="detail-github-link-container">
+                                        <i class="bi bi-github"></i>
+                                        <a href="#" id="detail-github-url" class="contact-link" target="_blank">GitHub</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a href="#" id="detail-download-report" class="btn btn-outline-secondary">
+                            <i class="bi bi-download me-2"></i>
+                            Download Report
+                        </a>
+                    </div>
+                </div>
+
+                <div class="page-content">
+                    <div class="row mb-4">
+                        <div class="col-lg-4 mb-4">
+                            <div class="card shadow-sm h-100 rounded-4">
+                                <div class="card-body p-4">
+                                    <h5 class="mb-4">Trust Score</h5>
+                                    <div class="d-flex flex-column align-items-center">
+                                        <div class="trust-gauge mb-3">
+                                            <svg>
+                                                <circle class="trust-gauge-bg" cx="80" cy="80" r="70" />
+                                                <circle class="trust-gauge-fg" id="detail-trust-gauge" cx="80" cy="80" r="70" stroke-dasharray="0 440" />
+                                            </svg>
+                                            <div class="trust-gauge-text">
+                                                <div class="trust-gauge-value" id="detail-trust-value">0%</div>
+                                                <div class="trust-gauge-label">Trust Level</div>
+                                            </div>
+                                        </div>
+                                        <span class="badge fs-6 trust-gauge-badge" id="detail-trust-badge">...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4 mb-4">
+                            <div class="card shadow-sm h-100 rounded-4">
+                                <div class="card-body p-4">
+                                    <h5 class="mb-4">Verification Status</h5>
+                                    <div class="vstack gap-3" id="detail-verification-status">
+                                        </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4 mb-4">
+                             <div class="card shadow-sm h-100 rounded-4">
+                                <div class="card-body p-4">
+                                    <h5 class="mb-4">Quick Stats</h5>
+                                    <div class="vstack gap-4">
+                                        <div>
+                                            <p class="text-sm text-muted mb-1">Experience</p>
+                                            <p class="fs-5 mb-0" id="detail-experience">N/A</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-muted mb-1">Education</p>
+                                            <p class="fs-6 mb-0" id="detail-education">N/A</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-muted mb-1">Status</p>
+                                            <span class="badge" id="detail-status-badge">...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-summary-box p-4 mb-4">
+                        <h5 class="mb-3 d-flex align-items-center gap-2">
+                            <i class="bi bi-stars fs-5" style="color: var(--primary-color);"></i>
+                            AI Summary
+                        </h5>
+                        <p class="text-secondary-emphasis" id="detail-ai-summary">...</p>
+                    </div>
+
+                    <div class="card shadow-sm rounded-4 detail-tabs">
+                        <ul class="nav nav-tabs px-4 pt-2">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-summary" type="button">Resume Summary</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-verification" type="button">Verification Results</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-insights" type="button">AI Insights</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-documents" type="button">Documents</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content p-4">
+                            <div class="tab-pane fade show active" id="tab-summary">
+                                <div class="vstack gap-4">
+                                    <div>
+                                        <h5>Skills</h5>
+                                        <div class="d-flex flex-wrap gap-2" id="detail-skills-list">
+                                            </div>
+                                    </div>
+                                    <div>
+                                        <h5>Experience</h5>
+                                        <ul class="list-unstyled vstack gap-3" id="detail-exp-list">
+                                            </ul>
+                                    </div>
+                                    <div>
+                                        <h5>Education</h5>
+                                        <ul class="list-unstyled vstack gap-3" id="detail-edu-list">
+                                            </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="tab-verification">
+                                 <div class="vstack gap-3" id="detail-cert-list">
+                                    </div>
+                            </div>
+                            <div class="tab-pane fade" id="tab-insights">
+                                <div class="vstack gap-3">
+                                    <div class="p-4 bg-success-subtle rounded-3 border border-success-subtle">
+                                        <h5 class="d-flex align-items-center gap-2 text-success">
+                                            <i class="bi bi-check-circle-fill"></i> Strengths
+                                        </h5>
+                                        <p class="text-secondary-emphasis mb-0" id="detail-ai-strengths">...</p>
+                                    </div>
+                                    <div class="p-4 bg-warning-subtle rounded-3 border border-warning-subtle" id="detail-ai-weakness-container">
+                                        <h5 class="d-flex align-items-center gap-2 text-warning-emphasis">
+                                            <i class="bi bi-exclamation-triangle-fill"></i> Areas Needing Attention
+                                        </h5>
+                                        <p class="text-secondary-emphasis mb-0" id="detail-ai-weakness">
+                                            Some verification items are pending or could not be confirmed.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="tab-documents">
+                                <div class="text-center p-5">
+                                    <div class="fs-1 text-muted mb-3"><i class="bi bi-google-drive"></i></div>
+                                    <h4 class="mb-2">Documents Stored in Google Drive</h4>
+                                    <p class="text-muted mb-4">All candidate documents are securely stored and organized.</p>
+                                    <button class="btn" style="background-color: var(--primary-color); color: white;">Open Drive Folder</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-3 mt-4">
+                        <button id="detail-approve-btn" class="btn btn-lg flex-1" style="background-color: var(--trust-high); color: white;">
+                            <i class="bi bi-check-circle me-2"></i> Approve Candidate
+                        </button>
+                        <button id="detail-request-btn" class="btn btn-lg flex-1" style="background-color: var(--trust-medium); color: white;">
+                            <i class="bi bi-exclamation-circle me-2"></i> Request More Info
+                        </button>
+                        <button id="detail-reject-btn" class="btn btn-lg flex-1" style="background-color: var(--trust-low); color: white;">
+                            <i class="bi bi-x-circle me-2"></i> Reject Candidate
+                        </button>
+                    </div>
+                </div>
+            </main>
+
+        </div> </div> 
+    
+    <script>
+        // --- START: SETUP ---
+        const SUPABASE_URL = "https://bigehkexbbkdogwaehzs.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZ2Voa2V4YmJrZG9nd2FlaHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NDE5MjYsImV4cCI6MjA3NzMxNzkyNn0.WKt3HQxcqNnfSouL1SHAmrAEtJ0hvY38GM8mEkbvty8";
+        // --- END: SETUP ---
+
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- Global State ---
+        let allCandidates = [];
+        let applicationsLineChart = null;
+        let trustDonutChart = null;
+        let analyticsScoreChart = null;
+        let analyticsTrustChart = null;
+
+
+        // --- DOM Elements ---
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const mainPages = document.querySelectorAll('main[data-page]');
+        const navLinks = document.querySelectorAll('.sidebar .nav-link');
+        
+        // --- Utility function for getting score details ---
+        function getScoreDetails(score) {
+            score = score || 0;
+            let trustBadge, trustText, trustColor;
+            
+            if (score > 75) {
+                trustBadge = 'high'; trustText = 'High Trust'; trustColor = 'var(--trust-high)';
+            } else if (score > 50) {
+                trustBadge = 'medium'; trustText = 'Needs Review'; trustColor = 'var(--trust-medium)';
+            } else if (score > 25) {
+                trustBadge = 'vlow'; trustText = 'Low Confidence'; trustColor = 'var(--trust-vlow)';
+            } else {
+                trustBadge = 'low'; trustText = 'Suspicious'; trustColor = 'var(--trust-low)';
+            }
+            return { trustBadge, trustText, trustColor };
+        }
+
+        // --- Main Data Fetch ---
+        async function fetchCandidateData() {
+            console.log("Fetching all candidate data...");
+            const { data, error } = await supabaseClient
+                .from('candidates')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error("Error fetching data:", error);
+                alert(`Error fetching data: ${error.message}`);
+                return;
+            }
+            
+            allCandidates = data;
+            console.log("Data fetched:", allCandidates);
+            
+            handleRouting(); 
+            
+            window.addEventListener('hashchange', handleRouting);
+            const topSearch = document.querySelector('.topbar .form-control');
+            if(topSearch) {
+                topSearch.addEventListener('keyup', (e) => {
+                    window.location.hash = '#candidates';
+                    renderCandidatesPage(e.target.value.toLowerCase());
+                });
+            }
+            
+            loadingSpinner.style.opacity = '0';
+            setTimeout(() => { loadingSpinner.style.display = 'none'; }, 300);
+        }
+
+        // --- Router ---
+        function handleRouting() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryCandidateId = urlParams.get('candidate');
+            
+            const hash = window.location.hash || '#dashboard';
+            const hashParts = hash.split('=');
+            const hashPage = hashParts[0];
+            const hashCandidateId = hashParts[1];
+
+            const candidateId = queryCandidateId || hashCandidateId;
+            let targetPageName = hashPage.substring(1);
+
+            if (candidateId) {
+                targetPageName = 'detail';
+            }
+
+            mainPages.forEach(page => page.classList.remove('active'));
+            navLinks.forEach(link => link.classList.remove('active'));
+            
+            if (targetPageName === 'detail') {
+                const pageElement = document.querySelector('main[data-page="detail"]');
+                pageElement.classList.add('active');
+                
+                const candidatesNavLink = document.querySelector('a[data-page-target="candidates"]');
+                if(candidatesNavLink) candidatesNavLink.classList.add('active');
+                
+                const candidate = allCandidates.find(c => c.id == candidateId); 
+                
+                if (candidate) {
+                    renderDetailPage(candidate);
+                } else {
+                    console.error(`Candidate find failed. Looked for ID ${candidateId} in:`, allCandidates);
+                    pageElement.innerHTML = `<h1 class="text-danger p-5">Error: Candidate not found</h1><a href="#candidates" class="btn btn-primary ms-5">Back to list</a>`;
+                }
+
+            } else {
+                const pageElement = document.querySelector(`main[data-page="${targetPageName}"]`);
+                const navLink = document.querySelector(`a[data-page-target="${targetPageName}"]`);
+                
+                if (pageElement) {
+                    pageElement.classList.add('active');
+                    if(navLink) navLink.classList.add('active');
+
+                    if (targetPageName === 'dashboard') renderDashboardPage();
+                    if (targetPageName === 'analytics') renderAnalyticsPage();
+                    if (targetPageName === 'candidates') renderCandidatesPage();
+                } else {
+                    document.querySelector('main[data-page="dashboard"]').classList.add('active');
+                    document.querySelector('a[data-page-target="dashboard"]').classList.add('active');
+                    renderDashboardPage();
+                }
+            }
+        }
+        
+        // --- Page Render Functions ---
+
+        function renderDashboardPage() {
+            if (allCandidates.length === 0) return;
+
+            // --- KPI Calculations ---
+            const total = allCandidates.length;
+            const verifiedCount = allCandidates.filter(c => (c.final_score || 0) > 75).length; 
+            const suspiciousCount = allCandidates.filter(c => (c.final_score || 0) < 25).length;
+            
+            // --- Populate KPIs ---
+            document.getElementById('kpi-total-candidates').innerText = total;
+            document.getElementById('kpi-verified-candidates').innerText = verifiedCount;
+            document.getElementById('kpi-suspicious-profiles').innerText = suspiciousCount;
+            
+            // --- Render Charts ---
+            renderTrustScoreDonut(allCandidates, 'trustScoreChart');
+            renderApplicationsLine(allCandidates);
+
+            // --- Recent Candidates Table ---
+            const recentTable = document.getElementById('dashboard-recent-table');
+            recentTable.innerHTML = '';
+            allCandidates.slice(0, 5).forEach(c => {
+                const score = c.final_score || 0;
+                const { trustBadge, trustText } = getScoreDetails(score); 
+
+                recentTable.innerHTML += `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar-sm rounded-circle">
+                                    ${c.name ? c.name.charAt(0) : 'N'}
+                                </div>
+                                <a href="#candidate=${c.id}">${c.name || 'N/A'}</a>
+                            </div>
+                        </td>
+                        <td>${c.suggested_role || 'N/A'}</td>
+                        <td><span class="badge trust-badge ${trustBadge}">${score}%</span></td>
+                        <td><span class="badge trust-badge ${trustBadge}">${trustText}</span></td>
+                        <td><a href="#candidate=${c.id}" class="btn btn-sm btn-outline-secondary btn-view-details">View Details</a></td>
+                    </tr>`;
+            });
+        }
+
+        function renderAnalyticsPage() {
+            // --- Cert Chart ---
+            const certContainer = document.getElementById('analytics-cert-chart');
+            certContainer.innerHTML = '';
+            const certStats = { Verified: 0, Discrepancy: 0, "Not Found": 0, Unverified: 0, Pending: 0 };
+            let totalClaims = 0;
+            
+            allCandidates.forEach(c => {
+                if (c.certificate_verification_report) {
+                    try {
+                        const reportList = (typeof c.certificate_verification_report === 'string')
+                            ? JSON.parse(c.certificate_verification_report)
+                            : c.certificate_verification_report;
+
+                        if (Array.isArray(reportList)) {
+                            reportList.forEach(report => {
+                                if (report.status in certStats) {
+                                    certStats[report.status]++;
+                                    totalClaims++;
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        console.warn("Could not parse certificate_verification_report:", e);
+                    }
+                }
+            });
+            
+            if(totalClaims > 0) {
+                Object.entries(certStats).forEach(([status, count]) => {
+                    const perc = (count / totalClaims) * 100;
+                    
+                    let barColor = '#3498db'; 
+                    if (status === 'Verified') barColor = 'var(--trust-high)';
+                    else if (status === 'Discrepancy' || status === 'Not Found') barColor = 'var(--trust-low)';
+                    else if (status === 'Pending') barColor = 'var(--trust-medium)';
+                    
+                    certContainer.innerHTML += `
+                        <div class="chart-bar" data-status="${status}">
+                            <span class="bar-label" title="${status}">${status}</span>
+                            <div class="bar-visual"><div style="width: ${perc.toFixed(0) || 1}%; background-color: ${barColor};">${count}</div></div>
+                        </div>`;
+                });
+            } else {
+                certContainer.innerHTML = `<p class="text-center text-muted p-4">No certificate data found.</p>`;
+            }
+            
+            // --- NEW: Render Analytics Charts ---
+            renderAnalyticsScoreChart(allCandidates);
+            renderAnalyticsTrustChart(allCandidates);
+        }
+        
+        function renderCandidatesPage(searchTerm = '') {
+            const tableBody = document.getElementById('candidate-table-body');
+            tableBody.innerHTML = '';
+            
+            const filteredData = allCandidates.filter(c => {
+                const skills = (c.skills || []).join(' ').toLowerCase();
+                return (
+                    (c.name && c.name.toLowerCase().includes(searchTerm)) ||
+                    (c.email && c.email.toLowerCase().includes(searchTerm)) ||
+                    (c.suggested_role && c.suggested_role.toLowerCase().includes(searchTerm)) ||
+                    (skills.includes(searchTerm))
+                );
+            });
+
+            if (filteredData.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="7" class="text-center p-4">No candidates found.</td></tr>`;
+                return;
+            }
+
+            filteredData.forEach(c => {
+                let aiIcon = '<span class="status-icon green" title="Likely Human (<= 50%)">●</span>';
+                if (c.ai_probability > 0.75) {
+                    aiIcon = `<span class="status-icon red" title="Likely AI (> 75%)">●</span>`;
+                } else if (c.ai_probability > 0.5) {
+                    aiIcon = `<span class="status-icon yellow" title="Possibly AI (50-75%)">●</span>`;
+                }
+                
+                let liIcon = `<span class="status-icon ${c.linkedin_name_match ? 'green' : 'red'}" title="${c.linkedin_name_match ? 'Name Matched' : 'Name Mismatch'}">●</span>`;
+                if (c.linkedin_name_match === null) liIcon = `<span class="text-muted">N/A</span>`;
+                
+                const score = c.final_score || 0;
+                const { trustBadge } = getScoreDetails(score); 
+
+                const row = `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar-sm rounded-circle">
+                                    ${c.name ? c.name.charAt(0) : 'N'}
+                                </div>
+                                <a href="#candidate=${c.id}" class="fw-bold">${c.name || 'N/A'}</a>
+                            </div>
+                        </td>
+                        <td>${c.suggested_role || 'N/A'}</td>
+                        <td><span class="badge trust-badge ${trustBadge}">${score}%</span></td>
+                        <td>${c.github_rating || '<span class="text-muted">N/A</span>'}</td>
+                        <td>${liIcon}</td>
+                        <td>${aiIcon}</td>
+                        <td><a href="#candidate=${c.id}" class="btn btn-sm btn-outline-secondary btn-view-details">View Details</a></td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+        
+        // 🎨 Renders New Detail Page
+        function renderDetailPage(c) {
+            console.log("Rendering detail for:", c);
+            const score = c.final_score || 0;
+            const { trustBadge, trustText, trustColor } = getScoreDetails(score);
+
+            
+            // --- Header ---
+            document.getElementById('detail-name').innerText = c.name || 'N/A';
+            document.getElementById('detail-role').innerText = c.suggested_role || 'Role not determined';
+            document.getElementById('detail-email').innerText = c.email || 'N/A';
+            document.getElementById('detail-avatar').innerText = c.name ? c.name.charAt(0) : '...';
+            
+            const liLinkContainer = document.getElementById('detail-linkedin-link-container');
+            if(c.linkedin_url) { 
+                document.getElementById('detail-linkedin-url').href = c.linkedin_url; 
+                liLinkContainer.style.display = 'flex';
+            } else { 
+                liLinkContainer.style.display = 'none'; 
+            }
+            
+            const ghLinkContainer = document.getElementById('detail-github-link-container');
+            if(c.github_url) { 
+                document.getElementById('detail-github-url').href = c.github_url; 
+                ghLinkContainer.style.display = 'flex';
+            } else { 
+                ghLinkContainer.style.display = 'none'; 
+            }
+
+            // --- Trust Score Gauge ---
+            const gauge = document.getElementById('detail-trust-gauge');
+            const valueText = document.getElementById('detail-trust-value');
+            const badgeText = document.getElementById('detail-trust-badge');
+            
+            const circumference = 440; // 2 * Math.PI * 70
+            const offset = circumference - (score / 100) * circumference;
+            gauge.style.strokeDasharray = `${circumference - offset} ${circumference}`;
+            
+            gauge.style.stroke = trustColor;
+            valueText.innerText = `${score}%`;
+            badgeText.innerText = trustText;
+            badgeText.style.backgroundColor = trustColor;
+            badgeText.style.color = 'white';
+
+            // --- Verification Status Card ---
+            const statusList = document.getElementById('detail-verification-status');
+            statusList.innerHTML = '';
+            
+            let aiStatus = 'Verified', aiIcon = 'bi-check-circle-fill', aiColor = 'green';
+            if (c.ai_probability > 0.75) { aiStatus = 'Suspicious'; aiIcon = 'bi-x-circle-fill'; aiColor = 'red'; }
+            else if (c.ai_probability > 0.5) { aiStatus = 'Needs Review'; aiIcon = 'bi-exclamation-circle-fill'; aiColor = 'yellow'; }
+            statusList.innerHTML += `
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi ${aiIcon} fs-5 status-icon ${aiColor}"></i>
+                        <span class="text-sm">AI Text Check</span>
+                    </div>
+                    <span class="text-muted text-sm">${(c.ai_probability * 100).toFixed(0)}%</span>
+                </div>`;
+            
+            if(c.linkedin_url) {
+                let liIcon = c.linkedin_name_match ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+                let liColor = c.linkedin_name_match ? 'green' : 'red';
+                statusList.innerHTML += `
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi ${liIcon} fs-5 status-icon ${liColor}"></i>
+                        <span class="text-sm">LinkedIn Name Match</span>
+                    </div>
+                    <i class="bi bi-box-arrow-up-right text-muted" style="font-size: 0.8rem;"></i>
+                </div>`;
+            }
+
+            if (c.github_url) {
+                 let ghIcon = 'bi-exclamation-circle-fill', ghColor = 'yellow';
+                if (c.github_rating === 'Excellent') { ghIcon = 'bi-check-circle-fill'; ghColor = 'green'; }
+                if (c.github_rating === 'Bad') { ghIcon = 'bi-x-circle-fill'; ghColor = 'red'; }
+                 statusList.innerHTML += `
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi ${ghIcon} fs-5 status-icon ${ghColor}"></i>
+                        <span class="text-sm">GitHub Activity</span>
+                    </div>
+                    <i class="bi bi-box-arrow-up-right text-muted" style="font-size: 0.8rem;"></i>
+                </div>`;
+            }
+            
+            // --- ADDED: Certificate Dosen't Exist Status ---
+            statusList.innerHTML += `
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-x-circle-fill fs-5 status-icon red"></i>
+                        <span class="text-sm">Certificate doesn't exist</span>
+                    </div>
+                    <span class="text-muted text-sm">No Claim</span>
+                </div>`;
+            // --- END ADDED: Certificate Dosen't Exist Status ---
+
+
+            // --- MODIFIED: Quick Stats Card (NOW USES DB DATA) ---
+            const expData = c.experience; // This is a JSONB array
+            if (Array.isArray(expData) && expData.length > 0) {
+                // Get the first (most recent) experience
+                document.getElementById('detail-experience').innerText = `${expData[0].role || 'N/A'} at ${expData[0].company || 'N/A'}`;
+            } else {
+                document.getElementById('detail-experience').innerText = 'N/A';
+            }
+            
+            const eduData = c.education; // This is a JSONB array
+            if (Array.isArray(eduData) && eduData.length > 0) {
+                // Get the first (most recent) education
+                document.getElementById('detail-education').innerText = `${eduData[0].degree || 'N/A'} at ${eduData[0].institution || 'N/A'}`;
+            } else {
+                document.getElementById('detail-education').innerText = 'N/A';
+            }
+            
+            const statusBadge = document.getElementById('detail-status-badge');
+            statusBadge.innerText = trustText;
+            statusBadge.style.backgroundColor = trustColor;
+            statusBadge.style.color = 'white';
+
+
+            // --- AI Summary Box ---
+            document.getElementById('detail-ai-summary').innerText = c.ai_summary || 'No AI summary generated.';
+
+            // --- MODIFIED: Tab: Summary (NOW USES DB DATA) ---
+            
+            // Skills
+            const skillsList = document.getElementById('detail-skills-list');
+            skillsList.innerHTML = '';
+            if (c.skills && c.skills.length > 0) {
+                skillsList.innerHTML = c.skills.map(skill => `<span class="badge text-bg-secondary m-1">${skill}</span>`).join('');
+            } else {
+                skillsList.innerHTML = `<p class="text-muted">No skills found.</p>`;
+            }
+
+            // Experience
+            const expList = document.getElementById('detail-exp-list');
+            expList.innerHTML = ''; // Clear
+            if (Array.isArray(c.experience) && c.experience.length > 0) {
+                c.experience.forEach(exp => {
+                    expList.innerHTML += `
+                        <li class="d-flex gap-3">
+                            <i class="bi bi-briefcase-fill text-secondary fs-5 mt-1"></i>
+                            <div>
+                                <h6 class="mb-0">${exp.role || 'N/A'} at ${exp.company || 'N/A'}</h6>
+                                <small class="text-muted">${exp.date || 'N/A'}</small>
+                            </div>
+                        </li>
+                    `;
+                });
+            } else {
+                expList.innerHTML = `<p class="text-muted">No experience data found.</p>`;
+            }
+
+            // Education
+            const eduList = document.getElementById('detail-edu-list');
+            eduList.innerHTML = ''; // Clear
+            if (Array.isArray(c.education) && c.education.length > 0) {
+                c.education.forEach(edu => {
+                    eduList.innerHTML += `
+                        <li class="d-flex gap-3">
+                            <i class="bi bi-mortarboard-fill text-secondary fs-5 mt-1"></i>
+                            <div>
+                                <h6 class="mb-0">${edu.degree || 'N/A'} at ${edu.institution || 'N/A'}</h6>
+                                <small class="text-muted">${edu.date || 'N/A'}</small>
+                            </div>
+                        </li>
+                    `;
+                });
+            } else {
+                eduList.innerHTML = `<p class="text-muted">No education data found.</p>`;
+            }
+
+            // --- Tab: Verification ---
+            const certList = document.getElementById('detail-cert-list');
+            certList.innerHTML = '';
+            let certReportData = c.certificate_verification_report;
+            if (typeof certReportData === 'string') {
+                try { certReportData = JSON.parse(certReportData); } catch (e) { certReportData = null; }
+            }
+            if (Array.isArray(certReportData) && certReportData.length > 0) {
+                certReportData.forEach(cert => {
+                    let icon = 'bi-clipboard-minus', color = 'text-muted';
+                    if (cert.status === 'Verified') { icon = 'bi-patch-check-fill'; color = 'text-success'; }
+                    if (cert.status === 'Discrepancy' || cert.status === 'Not Found') { icon = 'bi-exclamation-triangle-fill'; color = 'text-danger'; }
+                    if (cert.status === 'Pending') { icon = 'bi-hourglass-split'; color = 'text-warning'; }
+                    
+                    certList.innerHTML += `
+                        <div class="d-flex align-items-center justify-content-between p-3 bg-light rounded-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <i class="bi ${icon} fs-4 ${color}"></i>
+                                <div>
+                                    <h6 class="mb-0">${cert.claim}</h6>
+                                    <small class="text-muted">${cert.message}</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                certList.innerHTML = `<p class="text-center text-muted p-4">No certificate claims found.</p>`;
+            }
+            
+            // --- Tab: AI Insights ---
+            document.getElementById('detail-ai-strengths').innerText = c.ai_summary || 'No summary available.';
+            if(score >= 80) {
+                document.getElementById('detail-ai-weakness-container').style.display = 'none';
+            } else {
+                document.getElementById('detail-ai-weakness-container').style.display = 'block';
+            }
+            
+            // --- MODIFIED: Add onclick event listeners to buttons ---
+            const approveBtn = document.getElementById('detail-approve-btn');
+            const requestBtn = document.getElementById('detail-request-btn');
+            const candidateEmail = c.email || '';
+            const candidateName = c.name || 'this candidate';
+
+            approveBtn.onclick = () => approveCandidate(candidateEmail, candidateName);
+            requestBtn.onclick = () => requestMoreInfo(candidateEmail, candidateName);
+        }
+
+        // --- 🎨 NEW: Chart Functions ---
+
+        function renderTrustScoreDonut(data, canvasId) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            // Use the correct chart instance variable based on canvasId
+            let chartInstance = (canvasId === 'trustScoreChart') ? trustDonutChart : analyticsScoreChart;
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            // Using updated score ranges
+            let high = 0, medium = 0, vlow = 0, low = 0; 
+            data.forEach(c => {
+                const score = c.final_score || 0;
+                if (score > 75) high++;
+                else if (score > 50) medium++;
+                else if (score > 25) vlow++;
+                else low++;
+            });
+            
+            const total = high + medium + vlow + low;
+            
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    // Updated Labels
+                    labels: ['High Trust (> 75%)', 'Medium Trust (50-75%)', 'Low Trust (25-49%)', 'Very Low Trust (< 25%)'],
+                    datasets: [{
+                        // Updated Data structure
+                        data: [high, medium, vlow, low],
+                        backgroundColor: [
+                            getComputedStyle(document.documentElement).getPropertyValue('--trust-high'),
+                            getComputedStyle(document.documentElement).getPropertyValue('--trust-medium'),
+                            getComputedStyle(document.documentElement).getPropertyValue('--trust-vlow'),
+                            getComputedStyle(document.documentElement).getPropertyValue('--trust-low'),
+                        ],
+                        borderColor: 'var(--card-bg)',
+                        borderWidth: 4,
+                        hoverBorderWidth: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'right',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 8,
+                                padding: 16,
+                                font: { size: 14 },
+                                generateLabels: (chart) => {
+                                    const datasets = chart.data.datasets;
+                                    return datasets[0].data.map((data, i) => {
+                                        const label = chart.data.labels[i] || '';
+                                        const percentage = total > 0 ? ((data / total) * 100).toFixed(0) : 0;
+                                        return {
+                                            text: `${label} - ${percentage}%`, // Modified label to be clearer
+                                            fillStyle: datasets[0].backgroundColor[i],
+                                            hidden: !chart.isDatasetVisible(0),
+                                            index: i,
+                                            strokeStyle: datasets[0].backgroundColor[i],
+                                            fontColor: datasets[0].backgroundColor[i],
+                                        };
+                                    });
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label.split(' - ')[0] || ''; // Only show the main label part
+                                    const value = context.raw;
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Store the instance back
+            if (canvasId === 'trustScoreChart') {
+                trustDonutChart = chartInstance;
+            } else {
+                analyticsScoreChart = chartInstance;
+            }
+        }
+
+        function renderApplicationsLine(data) {
+            const ctx = document.getElementById('applicationsChart').getContext('2d');
+            
+            if (applicationsLineChart) {
+                applicationsLineChart.destroy();
+            }
+
+            const weekLabels = [];
+            const weeklyCounts = {};
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            const startOfThisWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+
+            for (let i = 5; i >= 0; i--) {
+                const weekStartDate = new Date(startOfThisWeek.getTime());
+                weekStartDate.setDate(weekStartDate.getDate() - (i * 7));
+                
+                const label = `Week ${6-i}`;
+                weekLabels.push(label);
+                
+                const weekEndDate = new Date(weekStartDate.getTime());
+                weekEndDate.setDate(weekEndDate.getDate() + 6);
+                
+                weeklyCounts[label] = {
+                    start: weekStartDate.getTime(),
+                    end: weekEndDate.getTime(),
+                    count: 0
+                };
+            }
+            
+            data.forEach(c => {
+                const timestamp = new Date(c.created_at).getTime();
+                for (const label of weekLabels) {
+                    if (timestamp >= weeklyCounts[label].start && timestamp <= weeklyCounts[label].end) {
+                        weeklyCounts[label].count++;
+                        break;
+                    }
+                }
+            });
+            
+            const weekData = weekLabels.map(label => weeklyCounts[label].count);
+
+            applicationsLineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: weekLabels,
+                    datasets: [{
+                        label: 'Applications',
+                        data: weekData,
+                        borderColor: 'var(--primary-color)',
+                        backgroundColor: 'var(--primary-light)',
+                        fill: false,
+                        tension: 0.3,
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointBackgroundColor: 'var(--primary-color)',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                display: true,
+                                color: '#f0f0f0',
+                                drawBorder: false,
+                            },
+                            ticks: {
+                                color: 'var(--text-secondary)',
+                                stepSize: 20
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: 'var(--text-secondary)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // --- MODIFIED: Real functions for Analytics charts ---
+        function renderAnalyticsScoreChart(data) {
+            // This is the same as the trust score donut, just on a different canvas
+            renderTrustScoreDonut(data, 'analyticsScoreChart');
+        }
+        
+        function renderAnalyticsTrustChart(data) {
+             const ctx = document.getElementById('analyticsTrustChart');
+             if (!ctx) return;
+             if (analyticsTrustChart) {
+                analyticsTrustChart.destroy();
+             }
+             
+            // Calculate average scores
+            let liScore = 0, ghScore = 0, liCount = 0, ghCount = 0;
+            data.forEach(c => {
+                if (c.linkedin_score) {
+                    liScore += c.linkedin_score;
+                    liCount++;
+                }
+                if (c.github_score) {
+                    ghScore += c.github_score;
+                    ghCount++;
+                }
+            });
+
+            const avgLiScore = liCount > 0 ? (liScore / liCount) : 0;
+            const avgGhScore = ghCount > 0 ? (ghScore / ghCount) : 0;
+
+             analyticsTrustChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['LinkedIn Score', 'GitHub Score'],
+                    datasets: [{
+                        label: 'Average Score',
+                        data: [avgLiScore, avgGhScore],
+                        backgroundColor: [
+                            'var(--primary-color)',
+                            'var(--text-primary)'
+                        ],
+                        borderRadius: 4,
+                        barThickness: 50,
+                    }]
+                },
+                options: {
+                     responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+             });
+        }
+
+        // --- NEW: Email Functions ---
+        function approveCandidate(email, name) {
+            if (!email) {
+                alert("Cannot send email: Candidate email is missing.");
+                return;
+            }
+            
+            const subject = "Next Steps in Your Application";
+            const body = `
+Dear ${name},
+
+We were impressed with your application and resume verification. We would like to invite you to the next step in our interview process.
+
+Please let us know what times work best for you in the coming week.
+
+Best regards,
+The HR Team
+            `;
+            
+            // Create and "click" the mailto link
+            const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.location.href = mailto;
+        }
+
+        function requestMoreInfo(email, name) {
+            if (!email) {
+                alert("Cannot send email: Candidate email is missing.");
+                return;
+            }
+
+            const subject = "Regarding Your Application";
+            const body = `
+Dear ${name},
+
+Thank you for applying.
+
+Our verification system flagged a few items for review. To proceed with your application, could you please provide some additional information or clarification on [INSERT ITEM TO CHECK]?
+
+Thank you for your cooperation.
+
+Best regards,
+The HR Team
+            `;
+            
+            // Create and "click" the mailto link
+            const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.location.href = mailto;
+        }
+
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', fetchCandidateData);
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
